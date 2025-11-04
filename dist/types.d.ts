@@ -31,4 +31,37 @@ export interface SyncResult {
     needsPull: string[];
     upToDate: string[];
 }
+export interface ImportResult {
+    imported: Conversation[];
+    archived: RawConversation[];
+    warnings: ImportWarning[];
+    metadata: ImportMetadata;
+}
+export interface RawConversation {
+    id: string;
+    format: string;
+    rawData: any;
+    filePath: string;
+    timestamp: number;
+}
+export interface ImportWarning {
+    type: 'unsupported_feature' | 'metadata_loss' | 'conversion_error';
+    message: string;
+    conversationId?: string;
+    details?: any;
+}
+export interface ImportMetadata {
+    format: string;
+    sourcePath: string;
+    timestamp: number;
+    totalConversations: number;
+    successfullyImported: number;
+    archivedCount: number;
+}
+export interface ImportStrategy {
+    format: string;
+    canImport(sourcePath: string): Promise<boolean>;
+    import(sourcePath: string): Promise<ImportResult>;
+    getFormat(): string;
+}
 //# sourceMappingURL=types.d.ts.map
