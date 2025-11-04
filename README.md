@@ -58,6 +58,8 @@ Add these to your `.bashrc`, `.zshrc`, or shell profile to make them permanent.
 
 ## Usage
 
+**Note:** Both `push` and `pull` commands accept an optional path parameter that overrides the `OPENCODE_SYNC_DIR` environment variable. This is useful for testing, archives, or temporary sync locations.
+
 ### Check sync status
 ```bash
 opencode-sync check
@@ -70,11 +72,23 @@ opencode-sync push
 ```
 Copies your local OpenCode conversations to the sync directory.
 
+**With custom path:**
+```bash
+opencode-sync push /tmp/archive
+```
+Push to a specific directory instead of $OPENCODE_SYNC_DIR.
+
 ### Pull conversations from sync directory
 ```bash
 opencode-sync pull
 ```
 Imports conversations from the sync directory to your local OpenCode storage.
+
+**With custom path:**
+```bash
+opencode-sync pull /tmp/archive
+```
+Pull from a specific directory instead of $OPENCODE_SYNC_DIR.
 
 ### Full bidirectional sync
 ```bash
@@ -123,6 +137,15 @@ opencode-sync push
 
 # Machine B
 opencode-sync pull
+```
+
+### Temporary Archive Workflow
+```bash
+# Create a temporary backup to /tmp
+opencode-sync push /tmp/opencode-backup
+
+# Later, restore from the backup
+opencode-sync pull /tmp/opencode-backup
 ```
 
 ## Directory Structure

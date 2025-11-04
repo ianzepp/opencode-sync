@@ -54,11 +54,11 @@ program
   });
 
 program
-  .command('push')
-  .description('Push local conversations to sync directory')
-  .action(async () => {
+  .command('push [path]')
+  .description('Push local conversations to sync directory (optional path overrides OPENCODE_SYNC_DIR)')
+  .action(async (path) => {
     try {
-      const { opencodePath, syncPath } = getPaths();
+      const { opencodePath, syncPath } = getPaths(path);
       const sync = new SyncManager(opencodePath, syncPath);
       await sync.push();
     } catch (error) {
@@ -68,11 +68,11 @@ program
   });
 
 program
-  .command('pull')
-  .description('Pull conversations from sync directory to local')
-  .action(async () => {
+  .command('pull [path]')
+  .description('Pull conversations from sync directory to local (optional path overrides OPENCODE_SYNC_DIR)')
+  .action(async (path) => {
     try {
-      const { opencodePath, syncPath } = getPaths();
+      const { opencodePath, syncPath } = getPaths(path);
       const sync = new SyncManager(opencodePath, syncPath);
       await sync.pull();
     } catch (error) {
@@ -100,15 +100,15 @@ program
     }
   });
 
-function getPaths(): { opencodePath: string; syncPath: string } {
+function getPaths(syncPathOverride?: string): { opencodePath: string; syncPath: string } {
   const opencodePath = process.env.OPENCODE_STORAGE_DIR;
   if (!opencodePath) {
     throw new Error('OPENCODE_STORAGE_DIR environment variable is not set');
   }
 
-  const syncPath = process.env.OPENCODE_SYNC_DIR;
+  const syncPath = syncPathOverride || process.env.OPENCODE_SYNC_DIR;
   if (!syncPath) {
-    throw new Error('OPENCODE_SYNC_DIR environment variable is not set');
+    throw new Error('OPENCODE_SYNC_DIR environment variable is not set (and no path provided)');
   }
 
   return { opencodePath, syncPath };
