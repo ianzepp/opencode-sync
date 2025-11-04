@@ -1,5 +1,7 @@
 import { ImportStrategy } from './types';
 import { OpenCodeImportStrategy } from './importers/opencode';
+import { ClaudeImportStrategy } from './importers/claude';
+import { ChatGPTImportStrategy } from './importers/chatgpt';
 
 export class ImportFormatRegistry {
   private static strategies: Map<string, new (archivePath: string) => ImportStrategy> = new Map();
@@ -7,6 +9,8 @@ export class ImportFormatRegistry {
   static {
     // Register built-in formats
     this.register('opencode', OpenCodeImportStrategy);
+    this.register('claude', ClaudeImportStrategy);
+    this.register('chatgpt', ChatGPTImportStrategy);
   }
 
   static register(format: string, strategy: new (archivePath: string) => ImportStrategy): void {

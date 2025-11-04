@@ -70,9 +70,30 @@ program
     .command('import <path>')
     .description('Import conversations from external format')
     .requiredOption('--format <format>', 'Source format (available: ' + importService.getAvailableFormats().join(', ') + ')')
+    .option('--preview', 'Preview what would be imported without making changes')
     .action(async (path, options) => {
     try {
-        await importService.importFrom(path, options.format);
+        await importService.importFrom(path, options.format, options.preview);
+    }
+    catch (error) {
+        console.error(chalk_1.default.red('Error:'), error instanceof Error ? error.message : error);
+        process.exit(1);
+    }
+});
+program
+    .command('scan <path>')
+    .description('Scan directory to detect conversation formats')
+    .action(async (path) => {
+    try {
+        const detectedFormat = await importService.detectFormat(path);
+        if (detectedFormat) {
+            console.log(chalk_1.default.green(`✓ Detected format: ${detectedFormat}`));
+            console.log(chalk_1.default.gray(`  You can import using: opencode-sync import --format ${detectedFormat} ${path}`));
+        }
+        else {
+            console.log(chalk_1.default.yellow('⚠ No supported conversation formats detected'));
+            console.log(chalk_1.default.gray('  Supported formats: ' + importService.getAvailableFormats().join(', ')));
+        }
     }
     catch (error) {
         console.error(chalk_1.default.red('Error:'), error instanceof Error ? error.message : error);
