@@ -2,14 +2,20 @@
 
 ## Installation
 
-### Option 1: Install from source (recommended for development)
+### Option 1: CURL Installation (Quickest)
+```bash
+# One-line installation
+curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/opencode-sync/main/install.sh | bash
+```
+
+### Option 2: Install from source (recommended for development)
 ```bash
 git clone <repository-url>
 cd opencode-sync
 ./install.sh
 ```
 
-### Option 2: Manual installation
+### Option 3: Manual installation
 ```bash
 # Install dependencies
 bun install  # or npm install

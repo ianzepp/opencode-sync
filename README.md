@@ -1,5 +1,9 @@
 # OpenCode Sync
 
+[![CI](https://github.com/YOUR_USERNAME/opencode-sync/workflows/CI/badge.svg)](https://github.com/YOUR_USERNAME/opencode-sync/actions)
+[![Release](https://github.com/YOUR_USERNAME/opencode-sync/workflows/Release/badge.svg)](https://github.com/YOUR_USERNAME/opencode-sync/releases)
+[![npm version](https://badge.fury.io/js/opencode-sync.svg)](https://badge.fury.io/js/opencode-sync)
+
 Sync OpenCode conversations between machines using a shared directory (USB stick, cloud storage, etc.).
 
 ## Features
@@ -13,23 +17,29 @@ Sync OpenCode conversations between machines using a shared directory (USB stick
 
 ## Installation
 
-### Using Bun (recommended)
+### Option 1: CURL Installation (Recommended)
+```bash
+# Install directly from GitHub
+curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/opencode-sync/main/install.sh | bash
+```
+
+**Note:** Replace `YOUR_USERNAME` with your actual GitHub username when you fork this repository.
+
+### Option 2: Using Bun (recommended)
 ```bash
 bun install -g opencode-sync
 ```
 
-### Using NPM
+### Option 3: Using NPM
 ```bash
 npm install -g opencode-sync
 ```
 
-### From source
+### Option 4: From source
 ```bash
 git clone <repository-url>
 cd opencode-sync
-bun install
-bun run build
-bun link  # or npm link
+./install.sh
 ```
 
 ## Configuration
