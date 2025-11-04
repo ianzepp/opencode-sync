@@ -5,7 +5,7 @@ This document explains how to set up the GitHub repository for the opencode-sync
 ## Repository Structure
 
 ```
-YOUR_USERNAME/opencode-sync/
+ianzepp/opencode-sync/
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml              # Continuous integration
@@ -30,7 +30,7 @@ YOUR_USERNAME/opencode-sync/
 7. Choose a license: MIT (we already have one)
 
 ### 2. Update Repository URLs
-Replace `YOUR_USERNAME` with your actual GitHub username in these files:
+Replace `ianzepp` with your actual GitHub username in these files:
 
 - `install.sh` (line with git clone URL)
 - `README.md` (CURL installation URL and badges)
@@ -42,7 +42,7 @@ Replace `YOUR_USERNAME` with your actual GitHub username in these files:
 If you want to publish to NPM:
 
 1. Create an NPM account at https://www.npmjs.com/
-2. Create an NPM token at https://www.npmjs.com/settings/YOUR_USERNAME/tokens
+2. Create an NPM token at https://www.npmjs.com/settings/ianzepp/tokens
 3. Add the token to GitHub Secrets:
    - Go to repository Settings → Secrets and variables → Actions
    - Add secret: `NPM_TOKEN` with your token value
@@ -54,12 +54,12 @@ Edit `package.json` with your information:
   "author": "Your Name <your.email@example.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YOUR_USERNAME/opencode-sync.git"
+    "url": "git+https://github.com/ianzepp/opencode-sync.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/opencode-sync/issues"
+    "url": "https://github.com/ianzepp/opencode-sync/issues"
   },
-  "homepage": "https://github.com/YOUR_USERNAME/opencode-sync#readme"
+  "homepage": "https://github.com/ianzepp/opencode-sync#readme"
 }
 ```
 
@@ -77,7 +77,7 @@ Once set up, users can install via:
 
 ### 1. CURL Installation (Recommended)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/opencode-sync/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ianzepp/opencode-sync/main/install.sh | bash
 ```
 
 ### 2. NPM Installation
@@ -128,7 +128,7 @@ After setting up, test the CURL installation:
 ./install.sh --help
 
 # Simulate CURL installation
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/opencode-sync/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ianzepp/opencode-sync/main/install.sh | bash
 ```
 
 ## Repository Badges
@@ -136,8 +136,8 @@ curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/opencode-sync/main/in
 Add these badges to your README (already included):
 
 ```markdown
-[![CI](https://github.com/YOUR_USERNAME/opencode-sync/workflows/CI/badge.svg)](https://github.com/YOUR_USERNAME/opencode-sync/actions)
-[![Release](https://github.com/YOUR_USERNAME/opencode-sync/workflows/Release/badge.svg)](https://github.com/YOUR_USERNAME/opencode-sync/releases)
+[![CI](https://github.com/ianzepp/opencode-sync/workflows/CI/badge.svg)](https://github.com/ianzepp/opencode-sync/actions)
+[![Release](https://github.com/ianzepp/opencode-sync/workflows/Release/badge.svg)](https://github.com/ianzepp/opencode-sync/releases)
 [![npm version](https://badge.fury.io/js/opencode-sync.svg)](https://badge.fury.io/js/opencode-sync)
 ```
 
@@ -174,4 +174,4 @@ For issues related to:
 
 ---
 
-**Note**: This project is ready for GitHub! Just replace `YOUR_USERNAME` with your actual GitHub username throughout the codebase and you're good to go! 🚀
+**Note**: This project is ready for GitHub! Just replace `ianzepp` with your actual GitHub username throughout the codebase and you're good to go! 🚀

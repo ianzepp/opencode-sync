@@ -13,7 +13,7 @@
     "start": "node dist/cli.js"
   },
   "keywords": ["opencode", "sync", "conversations", "backup"],
-  "author": "",
+  "author": "Ian Zepp <ian.zepp@protonmail.com>",
   "license": "MIT",
   "dependencies": {
     "commander": "^11.1.0",

@@ -1,7 +1,7 @@
 # OpenCode Sync
 
-[![CI](https://github.com/YOUR_USERNAME/opencode-sync/workflows/CI/badge.svg)](https://github.com/YOUR_USERNAME/opencode-sync/actions)
-[![Release](https://github.com/YOUR_USERNAME/opencode-sync/workflows/Release/badge.svg)](https://github.com/YOUR_USERNAME/opencode-sync/releases)
+[![CI](https://github.com/ianzepp/opencode-sync/workflows/CI/badge.svg)](https://github.com/ianzepp/opencode-sync/actions)
+[![Release](https://github.com/ianzepp/opencode-sync/workflows/Release/badge.svg)](https://github.com/ianzepp/opencode-sync/releases)
 [![npm version](https://badge.fury.io/js/opencode-sync.svg)](https://badge.fury.io/js/opencode-sync)
 
 Sync OpenCode conversations between machines using a shared directory (USB stick, cloud storage, etc.).
@@ -20,10 +20,10 @@ Sync OpenCode conversations between machines using a shared directory (USB stick
 ### Option 1: CURL Installation (Recommended)
 ```bash
 # Install directly from GitHub
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/opencode-sync/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ianzepp/opencode-sync/main/install.sh | bash
 ```
 
-**Note:** Replace `YOUR_USERNAME` with your actual GitHub username when you fork this repository.
+**Note:** Replace `ianzepp` with your actual GitHub username when you fork this repository.
 
 ### Option 2: Using Bun (recommended)
 ```bash

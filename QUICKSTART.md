@@ -5,7 +5,7 @@
 ### Option 1: CURL Installation (Quickest)
 ```bash
 # One-line installation
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/opencode-sync/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ianzepp/opencode-sync/main/install.sh | bash
 ```
 
 ### Option 2: Install from source (recommended for development)

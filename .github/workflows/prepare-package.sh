@@ -42,12 +42,12 @@ cat > package.json << 'EOF'
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YOUR_USERNAME/opencode-sync.git"
+    "url": "git+https://github.com/ianzepp/opencode-sync.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/opencode-sync/issues"
+    "url": "https://github.com/ianzepp/opencode-sync/issues"
   },
-  "homepage": "https://github.com/YOUR_USERNAME/opencode-sync#readme",
+  "homepage": "https://github.com/ianzepp/opencode-sync#readme",
   "dependencies": {
     "commander": "^11.1.0",
     "chalk": "^5.3.0"

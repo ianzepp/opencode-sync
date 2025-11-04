@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # OpenCode Sync Installation Script
-# Supports installation via CURL: curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/opencode-sync/main/install.sh | bash
+# Supports installation via CURL: curl -fsSL https://raw.githubusercontent.com/ianzepp/opencode-sync/main/install.sh | bash
 
 set -e
 
@@ -93,7 +93,7 @@ install_from_source() {
     
     # Clone repository
     echo "Cloning repository..."
-    git clone https://github.com/YOUR_USERNAME/opencode-sync.git . || {
+    git clone https://github.com/ianzepp/opencode-sync.git . || {
         print_error "Failed to clone repository"
         exit 1
     }
@@ -173,7 +173,7 @@ show_post_install() {
     echo -e "   ${YELLOW}opencode-sync check${NC}"
     echo ""
     echo -e "${BLUE}📖 For more information, see:${NC}"
-    echo -e "   ${YELLOW}https://github.com/YOUR_USERNAME/opencode-sync${NC}"
+    echo -e "   ${YELLOW}https://github.com/ianzepp/opencode-sync${NC}"
 }
 
 # Main installation flow
@@ -223,7 +223,7 @@ while [[ $# -gt 0 ]]; do
             echo "  $0 --from-npm         # Install from npm"
             echo ""
             echo "CURL Installation:"
-            echo "  curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/opencode-sync/main/install.sh | bash"
+            echo "  curl -fsSL https://raw.githubusercontent.com/ianzepp/opencode-sync/main/install.sh | bash"
             exit 0
             ;;
         *)
