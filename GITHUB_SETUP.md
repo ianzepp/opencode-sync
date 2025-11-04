@@ -85,10 +85,7 @@ curl -fsSL https://raw.githubusercontent.com/ianzepp/opencode-sync/main/install.
 npm install -g opencode-sync
 ```
 
-### 3. Bun Installation
-```bash
-bun install -g opencode-sync
-```
+
 
 ## Automated Workflows
 

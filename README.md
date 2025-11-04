@@ -25,12 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/ianzepp/opencode-sync/main/install.
 
 **Note:** Replace `ianzepp` with your actual GitHub username when you fork this repository.
 
-### Option 2: Using Bun (recommended)
-```bash
-bun install -g opencode-sync
-```
-
-### Option 3: Using NPM
+### Option 2: Using NPM
 ```bash
 npm install -g opencode-sync
 ```
@@ -58,7 +53,7 @@ Add these to your `.bashrc`, `.zshrc`, or shell profile to make them permanent.
 
 ## Usage
 
-**Note:** Both `push` and `pull` commands accept an optional path parameter that overrides the `OPENCODE_SYNC_DIR` environment variable. This is useful for testing, archives, or temporary sync locations.
+**Note:** Both `push` and `pull` commands accept an optional path parameter that overrides the `OPENCODE_SYNC_DIR` environment variable. The `sync` command now supports optional path parameters for flexible sync operations between any directories.
 
 ### Check sync status
 ```bash
@@ -95,6 +90,15 @@ Pull from a specific directory instead of $OPENCODE_SYNC_DIR.
 opencode-sync sync
 ```
 Performs push then pull in one command.
+
+**With custom paths:**
+```bash
+# Sync to specific directory
+opencode-sync sync /tmp/archive
+
+# Sync between two directories
+opencode-sync sync /tmp/archive /backup/archive
+```
 
 ## Workflow Examples
 
@@ -139,6 +143,18 @@ opencode-sync push
 opencode-sync pull
 ```
 
+### Archive Sync Workflow
+```bash
+# Create a temporary backup to /tmp
+opencode-sync sync /tmp/opencode-backup
+
+# Sync between different backup locations
+opencode-sync sync /tmp/backup /external/backup
+
+# Sync between two existing archives
+opencode-sync sync /path/to/archive1 /path/to/archive2
+```
+
 ### Temporary Archive Workflow
 ```bash
 # Create a temporary backup to /tmp
@@ -169,7 +185,7 @@ opencode-sync/
 
 ## Requirements
 
-- Node.js 16+ or Bun
+- Node.js 16+
 - OpenCode installed and configured
 - Access to OpenCode storage directory
 - Write access to sync directory
@@ -199,16 +215,16 @@ Make sure OpenCode has created conversations in your storage directory.
 
 ```bash
 # Install dependencies
-bun install
+npm install
 
 # Build TypeScript
-bun run build
+npm run build
 
 # Watch mode for development
-bun run dev
+npm run dev
 
 # Run locally
-bun start --help
+npm start --help
 ```
 
 ## License

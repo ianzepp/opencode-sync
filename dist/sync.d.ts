@@ -9,5 +9,6 @@ export declare class SyncManager {
     pull(): Promise<void>;
     private getSyncConversations;
     private importConversation;
+    static syncDirectories(path1: string, path2: string): Promise<void>;
 }
 //# sourceMappingURL=sync.d.ts.map

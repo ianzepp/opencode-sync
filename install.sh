@@ -60,25 +60,18 @@ detect_system() {
     esac
 }
 
-# Check if Node.js or Bun is available
+# Check if Node.js is available
 check_runtime() {
-    if command -v bun &> /dev/null; then
-        print_status "Found Bun"
-        RUNTIME="bun"
-        INSTALL_CMD="bun install"
-        BUILD_CMD="bun run build"
-        LINK_CMD="bun link"
-    elif command -v npm &> /dev/null; then
+    if command -v npm &> /dev/null; then
         print_status "Found npm"
         RUNTIME="npm"
         INSTALL_CMD="npm install"
         BUILD_CMD="npm run build"
         LINK_CMD="npm link"
     else
-        print_error "Neither Bun nor npm found. Please install Node.js or Bun first."
+        print_error "npm not found. Please install Node.js first."
         echo ""
         echo "Install Node.js: https://nodejs.org/"
-        echo "Install Bun: https://bun.sh/"
         exit 1
     fi
 }
@@ -115,7 +108,7 @@ install_from_source() {
     # Global installation
     echo "Installing globally..."
     $LINK_CMD || {
-        print_error "Failed to install globally"
+        print_error "Failed to install globally. You may need to run: sudo npm link"
         exit 1
     }
     
@@ -127,17 +120,10 @@ install_from_source() {
 install_from_npm() {
     echo -e "\n${BLUE}📦 Installing from npm...${NC}"
     
-    if [ "$RUNTIME" = "bun" ]; then
-        bun add -g opencode-sync || {
-            print_error "Failed to install from npm"
-            exit 1
-        }
-    else
-        npm install -g opencode-sync || {
-            print_error "Failed to install from npm"
-            exit 1
-        }
-    fi
+    npm install -g opencode-sync || {
+        print_error "Failed to install from npm"
+        exit 1
+    }
 }
 
 # Verify installation
@@ -190,6 +176,14 @@ main() {
         install_from_npm
     else
         install_from_source
+    fi
+    
+    # Add npm global bin to PATH if not already there
+    if ! command -v opencode-sync &> /dev/null; then
+        NPM_GLOBAL_BIN=$(npm bin -g 2>/dev/null || echo "$HOME/.npm-global/bin")
+        print_warning "opencode-sync not found in PATH. You may need to add the following to your shell profile:"
+        echo -e "${YELLOW}export PATH=\"\$PATH:$NPM_GLOBAL_BIN\"${NC}"
+        echo "Then restart your terminal or run: source ~/.bashrc (or ~/.zshrc)"
     fi
     
     echo -e "\n${BLUE}Verifying installation...${NC}"
