@@ -1,5 +1,5 @@
 import { BaseImportStrategy } from '../import';
-import { Conversation, ImportResult } from '../types';
+import { Conversation, ImportOptions, ImportResult } from '../types';
 import { OpenCodeStorage } from '../opencode';
 import { join } from 'path';
 import { promises as fs } from 'fs';
@@ -29,7 +29,7 @@ export class OpenCodeImportStrategy extends BaseImportStrategy {
     }
   }
 
-  async import(sourcePath: string): Promise<ImportResult> {
+  async import(sourcePath: string, _options: ImportOptions = {}): Promise<ImportResult> {
     const storage = new OpenCodeStorage(sourcePath);
     const conversations = await storage.getConversations();
     const imported: Conversation[] = [];

@@ -71,9 +71,13 @@ program
     .description('Import conversations from external format')
     .requiredOption('--format <format>', 'Source format (available: ' + importService.getAvailableFormats().join(', ') + ')')
     .option('--preview', 'Preview what would be imported without making changes')
+    .option('--force', 'Re-import files even if they were previously imported')
     .action(async (path, options) => {
     try {
-        await importService.importFrom(path, options.format, options.preview);
+        await importService.importFrom(path, options.format, {
+            preview: options.preview,
+            force: options.force
+        });
     }
     catch (error) {
         console.error(chalk_1.default.red('Error:'), error instanceof Error ? error.message : error);

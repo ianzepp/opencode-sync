@@ -1,4 +1,4 @@
-import { Conversation, ImportResult, ImportStrategy, RawConversation, ImportWarning, ImportMetadata } from './types';
+import { Conversation, ImportOptions, ImportResult, ImportStrategy, RawConversation, ImportWarning } from './types';
 import { ensureDir, writeJsonFile } from './utils';
 import { join } from 'path';
 import { promises as fs } from 'fs';
@@ -19,7 +19,7 @@ export class ImportManager {
     this.strategies.set(strategy.format, strategy);
   }
 
-  async importFrom(sourcePath: string, format: string): Promise<ImportResult> {
+  async importFrom(sourcePath: string, format: string, options: ImportOptions = {}): Promise<ImportResult> {
     const strategy = this.strategies.get(format);
     if (!strategy) {
       throw new Error(`Unsupported format: ${format}`);
@@ -29,7 +29,7 @@ export class ImportManager {
       throw new Error(`Cannot import from ${sourcePath} - format validation failed`);
     }
 
-    return strategy.import(sourcePath);
+    return strategy.import(sourcePath, options);
   }
 
   async archiveConversation(raw: RawConversation, reason: string): Promise<string> {
@@ -61,7 +61,7 @@ export abstract class BaseImportStrategy implements ImportStrategy {
   }
 
   abstract canImport(sourcePath: string): Promise<boolean>;
-  abstract import(sourcePath: string): Promise<ImportResult>;
+  abstract import(sourcePath: string, options?: ImportOptions): Promise<ImportResult>;
 
   getFormat(): string {
     return this.format;

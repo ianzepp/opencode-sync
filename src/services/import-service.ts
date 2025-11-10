@@ -3,6 +3,7 @@ import { ImportFormatRegistry } from '../import-registry';
 import { ImportResult, ImportStrategy } from '../types';
 import { ClaudeImportStrategy } from '../importers/claude';
 import { ChatGPTImportStrategy } from '../importers/chatgpt';
+import { ClaudeCodeRawImportStrategy } from '../importers/claude-code-raw';
 import chalk from 'chalk';
 
 export class ImportService {
@@ -25,9 +26,19 @@ export class ImportService {
     // Register ChatGPT format
     const chatgptStrategy = new ChatGPTImportStrategy(this.importManager.getArchivePath());
     this.importManager.registerStrategy(chatgptStrategy);
+    
+    // Register Claude Code raw format
+    const claudeCodeRawStrategy = new ClaudeCodeRawImportStrategy(this.importManager.getArchivePath());
+    this.importManager.registerStrategy(claudeCodeRawStrategy);
   }
 
-  async importFrom(sourcePath: string, format: string, preview: boolean = false): Promise<void> {
+  async importFrom(
+    sourcePath: string,
+    format: string,
+    options: { preview?: boolean; force?: boolean } = {}
+  ): Promise<void> {
+    const { preview = false, force = false } = options;
+
     if (!ImportFormatRegistry.isSupported(format)) {
       throw new Error(`Unsupported format: ${format}. Available formats: ${this.getAvailableFormats().join(', ')}`);
     }
@@ -38,7 +49,7 @@ export class ImportService {
       console.log(chalk.blue(`Importing from ${sourcePath} in ${format} format...`));
     }
     
-    const result = await this.importManager.importFrom(sourcePath, format);
+    const result = await this.importManager.importFrom(sourcePath, format, { force });
     
     if (preview) {
       this.displayPreviewResult(result);
@@ -87,6 +98,8 @@ export class ImportService {
           return new ClaudeImportStrategy(this.importManager.getArchivePath());
         case 'chatgpt':
           return new ChatGPTImportStrategy(this.importManager.getArchivePath());
+        case 'claude-code-raw':
+          return new ClaudeCodeRawImportStrategy(this.importManager.getArchivePath());
         default:
           throw new Error(`Strategy for format ${format} not found`);
       }

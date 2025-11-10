@@ -1,5 +1,5 @@
 import { BaseImportStrategy } from '../import';
-import { Conversation, ImportResult, Message, RawConversation, ImportWarning } from '../types';
+import { Conversation, ImportOptions, ImportResult, Message, RawConversation, ImportWarning } from '../types';
 import { readJsonFile } from '../utils';
 import { join } from 'path';
 import { promises as fs } from 'fs';
@@ -60,10 +60,11 @@ export class ClaudeImportStrategy extends BaseImportStrategy {
     }
   }
 
-  async import(sourcePath: string): Promise<ImportResult> {
+  async import(sourcePath: string, _options: ImportOptions = {}): Promise<ImportResult> {
     const imported: Conversation[] = [];
     const archived: RawConversation[] = [];
     const warnings: ImportWarning[] = [];
+
 
     try {
       const files = await fs.readdir(sourcePath);

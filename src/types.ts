@@ -43,6 +43,10 @@ export interface ImportResult {
   metadata: ImportMetadata;
 }
 
+export interface ImportOptions {
+  force?: boolean;
+}
+
 export interface RawConversation {
   id: string;
   format: string;
@@ -70,6 +74,6 @@ export interface ImportMetadata {
 export interface ImportStrategy {
   format: string;
   canImport(sourcePath: string): Promise<boolean>;
-  import(sourcePath: string): Promise<ImportResult>;
+  import(sourcePath: string, options?: ImportOptions): Promise<ImportResult>;
   getFormat(): string;
 }
