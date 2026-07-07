@@ -32,7 +32,8 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
     "@types/node": "^20.8.0",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "webdav-server": "^2.6.2"
   },
   "engines": {
     "node": ">=16.0.0"

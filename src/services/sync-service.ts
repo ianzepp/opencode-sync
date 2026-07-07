@@ -25,9 +25,17 @@ export class SyncService {
     this.displayCheckResult(result);
   }
 
+  private async getOpenCodePath(): Promise<string> {
+    const env = process.env.OPENCODE_STORAGE_DIR;
+    if (env) return env;
+    const detected = await this.pathService.detectOpenCodeStorage();
+    if (detected) return detected;
+    throw new Error('OPENCODE_STORAGE_DIR environment variable is not set and OpenCode storage could not be auto-detected.');
+  }
+
   async pushConversations(syncPathOrRemote?: string | RemoteOptions): Promise<void> {
     if (typeof syncPathOrRemote === 'object') {
-      const { opencodePath } = await this.pathService.getPaths();
+      const opencodePath = await this.getOpenCodePath();
       const remote = syncPathOrRemote as RemoteOptions;
       const storage = new WebDAVSyncStorage(remote.url, remote.prefix || '', remote.username, remote.password);
       const sync = new SyncManager(opencodePath, storage);
@@ -41,7 +49,7 @@ export class SyncService {
 
   async pullConversations(syncPathOrRemote?: string | RemoteOptions): Promise<void> {
     if (typeof syncPathOrRemote === 'object') {
-      const { opencodePath } = await this.pathService.getPaths();
+      const opencodePath = await this.getOpenCodePath();
       const remote = syncPathOrRemote as RemoteOptions;
       const storage = new WebDAVSyncStorage(remote.url, remote.prefix || '', remote.username, remote.password);
       const sync = new SyncManager(opencodePath, storage);

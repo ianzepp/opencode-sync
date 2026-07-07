@@ -31,6 +31,9 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
+# Local config files (may contain credentials)
+task-runner.bat
+
 # Temporary files
 *.tmp
 *.temp
