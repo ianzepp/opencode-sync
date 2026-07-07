@@ -4,6 +4,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { SyncService } from './services/sync-service';
 import { ImportService } from './services/import-service';
+import { PathService } from './services/path-service';
+import { serve } from './web/server';
 
 const program = new Command();
 const syncService = new SyncService();
@@ -97,6 +99,23 @@ program
         console.log(chalk.yellow('⚠ No supported conversation formats detected'));
         console.log(chalk.gray('  Supported formats: ' + importService.getAvailableFormats().join(', ')));
       }
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('serve')
+  .description('Start web UI for browsing and searching conversations')
+  .option('-p, --port <port>', 'Port to listen on', '3000')
+  .action(async (options) => {
+    try {
+      const pathService = new PathService();
+      const { opencodePath } = await pathService.getPaths();
+      const port = parseInt(options.port, 10);
+      console.log(chalk.blue(`Starting OpenCode Web UI on port ${port}...`));
+      await serve(opencodePath, port);
     } catch (error) {
       console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
       process.exit(1);
