@@ -8,20 +8,19 @@ Sync OpenCode conversations between machines using a shared directory (USB stick
 
 ## Features
 
-- **Bidirectional sync** between local OpenCode storage and shared directory
-- **Flexible sync location** - works with USB sticks, cloud storage, network drives
-- **Incremental updates** - only syncs changed conversations
-- **Colorized output** - clear visual feedback on sync status
-- **Simple configuration** - just two environment variables
-- **Fast detection** - quickly identifies what needs sync
-- **Import support** - import conversations from ChatGPT, Claude, and other formats
-- **Format detection** - automatically detect conversation formats in directories
+- **SQLite 原生读取** — 直接从 `opencode.db` 读取会话和消息，无需中间文件
+- **双向同步** — 在本地 OpenCode 存储和共享目录之间同步
+- **Web UI 浏览与搜索** — 内置 Web 界面，支持全文搜索（FTS5）
+- **增量同步** — 只同步有变更的会话
+- **灵活的同步路径** — 支持 USB、云存储、网络驱动器
+- **多格式导入** — 从 ChatGPT、Claude、Claude Code 等格式导入对话
+- **自动格式检测** — 自动识别目录中的对话格式
+- **彩色输出** — 同步状态清晰可见
 
 ## Installation
 
 ### Option 1: CURL Installation (Quickest)
 ```bash
-# One-line installation
 curl -fsSL https://raw.githubusercontent.com/ianzepp/opencode-sync/main/install.sh | bash
 ```
 
@@ -32,14 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/ianzepp/opencode-sync/main/install.
 npm install -g opencode-sync
 ```
 
-### Option 3: From source (recommended for development)
-```bash
-git clone <repository-url>
-cd opencode-sync
-./install.sh
-```
-
-### Option 4: Manual installation
+### Option 3: Manual installation
 ```bash
 # Install dependencies
 bun install  # or npm install
@@ -67,8 +59,6 @@ Add these to your `.bashrc`, `.zshrc`, or shell profile to make them permanent.
 
 ## Usage
 
-**Note:** Both `push` and `pull` commands accept an optional path parameter that overrides the `OPENCODE_SYNC_DIR` environment variable. The `sync` command now supports optional path parameters for flexible sync operations between any directories.
-
 ### Check sync status
 ```bash
 opencode-sync check
@@ -79,25 +69,23 @@ Shows which conversations need to be pushed or pulled.
 ```bash
 opencode-sync push
 ```
-Copies your local OpenCode conversations to the sync directory.
+Copies local OpenCode conversations (from SQLite) to the sync directory.
 
 **With custom path:**
 ```bash
 opencode-sync push /tmp/archive
 ```
-Push to a specific directory instead of $OPENCODE_SYNC_DIR.
 
 ### Pull conversations from sync directory
 ```bash
 opencode-sync pull
 ```
-Imports conversations from the sync directory to your local OpenCode storage.
+Imports conversations from the sync directory to local storage.
 
 **With custom path:**
 ```bash
 opencode-sync pull /tmp/archive
 ```
-Pull from a specific directory instead of $OPENCODE_SYNC_DIR.
 
 ### Full bidirectional sync
 ```bash
@@ -114,6 +102,16 @@ opencode-sync sync /tmp/archive
 opencode-sync sync /tmp/archive /backup/archive
 ```
 
+### Web UI (browse and search)
+```bash
+opencode-sync serve --port 3000
+```
+Starts a web interface with:
+- 三栏布局：项目列表 → 对话列表 → 对话详情
+- 全文搜索（FTS5，支持中文分词）
+- Markdown 渲染（思考过程、代码块、表格）
+- 工具调用流程可视化
+
 ### Import conversations from external formats
 ```bash
 # Import from detected format
@@ -123,7 +121,7 @@ opencode-sync import /path/to/conversations --format chatgpt
 opencode-sync import /path/to/conversations --format claude --preview
 ```
 
-**Supported formats:** `opencode`, `claude`, `chatgpt`
+**Supported formats:** `opencode`, `claude`, `chatgpt`, `claude-code-raw`
 
 ### Scan directory for conversation formats
 ```bash
@@ -131,94 +129,54 @@ opencode-sync scan /path/to/directory
 ```
 Detects which conversation format is present in the directory.
 
-## Workflow Examples
+## How It Works
 
-### USB Stick Workflow
-```bash
-# Machine A: Save conversations to USB
-export OPENCODE_SYNC_DIR="/Volumes/USB/opencode-sync"
-opencode-sync push
-
-# Move USB to Machine B
-export OPENCODE_SYNC_DIR="/media/user/USB/opencode-sync"
-opencode-sync pull
-# Work on conversations...
-opencode-sync push
-
-# Move USB back to Machine A
-opencode-sync pull
-```
-
-### Cloud Storage Workflow
-```bash
-# Machine A: Sync to Dropbox/Drive folder
-export OPENCODE_SYNC_DIR="$HOME/Dropbox/opencode-sync"
-opencode-sync push
-
-# Machine B: After cloud sync
-export OPENCODE_SYNC_DIR="$HOME/Dropbox/opencode-sync"
-opencode-sync pull
-# Work on conversations...
-opencode-sync push
-```
-
-### Network Drive Workflow
-```bash
-# Both machines use same network location
-export OPENCODE_SYNC_DIR="/mnt/shared/opencode-sync"
-
-# Machine A
-opencode-sync push
-
-# Machine B
-opencode-sync pull
-```
-
-### Archive Sync Workflow
-```bash
-# Create a temporary backup to /tmp
-opencode-sync sync /tmp/opencode-backup
-
-# Sync between different backup locations
-opencode-sync sync /tmp/backup /external/backup
-
-# Sync between two existing archives
-opencode-sync sync /path/to/archive1 /path/to/archive2
-```
-
-### Temporary Archive Workflow
-```bash
-# Create a temporary backup to /tmp
-opencode-sync push /tmp/opencode-backup
-
-# Later, restore from the backup
-opencode-sync pull /tmp/opencode-backup
-```
+1. **数据源**: 直接从 OpenCode 的 SQLite 数据库（`opencode.db`）读取会话和消息
+2. **比对**: 按 `session.time_updated` 字段比较本地与同步目录的版本
+3. **同步**: 将较新的对话复制到较旧的位置
+4. **搜索**: 使用 SQLite FTS5 建立全文索引，支持中文搜索和高亮片段
 
 ## Directory Structure
 
-The sync directory will be organized as:
+### Source code
 ```
-opencode-sync/
-├── conversations/
-│   ├── conv_6de9c72abffe.json
-│   ├── conv_5b5f55168ffef.json
-│   └── ...
-└── sync-index.json          # Optional: sync metadata
+src/
+├── cli.ts                      # CLI 入口（7 个命令）
+├── types.ts                    # 核心类型定义
+├── utils.ts                    # 文件 I/O 工具
+├── opencode.ts                 # OpenCode SQLite 存储读写
+├── sync.ts                     # 同步核心逻辑
+├── import.ts                   # 导入框架
+├── import-registry.ts          # 导入格式注册
+├── importers/
+│   ├── opencode.ts             # OpenCode → OpenCode
+│   ├── claude.ts               # Claude 对话 → OpenCode
+│   ├── chatgpt.ts              # ChatGPT 对话 → OpenCode
+│   └── claude-code-raw.ts      # Claude Code 原始 JSONL 导入
+├── services/
+│   ├── path-service.ts         # 路径解析与自动检测
+│   ├── sync-service.ts         # 同步业务层
+│   └── import-service.ts       # 导入业务层
+└── web/
+    ├── search.ts               # FTS5 搜索索引
+    ├── server.ts               # Express 服务器
+    └── public/index.html       # 前端页面
 ```
 
-## How It Works
-
-1. **Detection**: Scans both local OpenCode storage and sync directory
-2. **Comparison**: Compares conversation update timestamps
-3. **Sync**: Copies newer conversations to update older locations
-4. **Tracking**: Uses file timestamps for change detection
+### Sync directory (output)
+```
+sync-directory/
+└── conversations/
+    ├── ses_0c4bf5593ffee6Gbwmv1iVWmgp.json
+    ├── ses_0c4e7a089ffenJDqN1rg4rVDaO.json
+    └── ...
+```
 
 ## Requirements
 
 - Node.js 16+
 - OpenCode installed and configured
-- Access to OpenCode storage directory
+- Access to OpenCode storage directory (`opencode.db`)
 - Write access to sync directory
 
 ## Environment Variables
@@ -228,36 +186,18 @@ opencode-sync/
 | `OPENCODE_STORAGE_DIR` | ✅ | Path to OpenCode storage | `$HOME/.local/share/opencode/storage` |
 | `OPENCODE_SYNC_DIR` | ✅ | Path to sync directory | `/Volumes/USB/opencode-sync` |
 
-## Troubleshooting
+## Tech Stack
 
-### "OPENCODE_STORAGE_DIR environment variable is not set"
-Set the environment variable pointing to your OpenCode storage directory.
-
-### "OPENCODE_SYNC_DIR environment variable is not set"
-Set the environment variable pointing to your desired sync directory.
-
-### Sync directory not accessible
-Ensure you have read/write permissions to the sync directory.
-
-### No conversations found
-Make sure OpenCode has created conversations in your storage directory.
-
-## Getting Help
-
-```bash
-# General help
-opencode-sync --help
-
-# Command-specific help
-opencode-sync check --help
-opencode-sync push --help
-opencode-sync pull --help
-opencode-sync sync --help
-opencode-sync import --help
-opencode-sync scan --help
-```
-
-For more detailed documentation, see the sections above.
+| 组件 | 技术 |
+|------|------|
+| 运行时 | Node.js ≥16 |
+| 语言 | TypeScript 5 |
+| CLI 框架 | commander |
+| SQLite | better-sqlite3 |
+| Web 服务 | Express 5 |
+| 前端 | 原生 HTML + CSS + vanilla JS |
+| Markdown | marked (CDN) |
+| 搜索 | SQLite FTS5 (unicode61) |
 
 ## Development
 
@@ -270,6 +210,9 @@ npm run build
 
 # Watch mode for development
 npm run dev
+
+# Start web UI
+npm start serve
 
 # Run locally
 npm start --help
