@@ -83,6 +83,13 @@ export class PathService {
         if (hasSessionDir || hasMessageDir) {
           return candidate;
         }
+
+        // Fallback: check for opencode.db (newer versions use SQLite)
+        const hasDb = await fs.access(join(candidate, '..', 'opencode.db'))
+          .then(() => true).catch(() => false);
+        if (hasDb) {
+          return candidate;
+        }
       } catch {
         // Continue to next candidate
       }

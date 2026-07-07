@@ -124,23 +124,10 @@ export class SyncManager {
   }
 
   private async importConversation(conversation: Conversation): Promise<void> {
-    // This is a simplified import - in a real implementation, we'd need to
-    // properly integrate with OpenCode's storage format
-    // For now, we'll just copy the data to the local storage
-    
-    const opencodePath = this.opencodeStorage.constructor.toString().includes('OpenCodeStorage') 
-      ? (this.opencodeStorage as any).storagePath 
-      : process.env.OPENCODE_STORAGE_DIR;
-    
-    if (!opencodePath) {
-      throw new Error('OpenCode storage path not available');
-    }
-
-    // Create a simple import marker file (simplified approach)
-    const importMarker = join(opencodePath, 'sync_imported', `${conversation.id}.json`);
-    await ensureDir(join(opencodePath, 'sync_imported'));
+    const importMarker = join(this.opencodeStorage.storagePath, 'sync_imported', `${conversation.id}.json`);
+    await ensureDir(join(this.opencodeStorage.storagePath, 'sync_imported'));
     await writeJsonFile(importMarker, conversation);
-    
+
     console.log(`  Imported conversation ${conversation.id} to local storage`);
   }
   
