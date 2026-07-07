@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { join } from 'path';
+import { basename, join } from 'path';
 import { Conversation, Message } from './types';
 
 export class OpenCodeStorage {
@@ -38,7 +38,7 @@ export class OpenCodeStorage {
   async getConversationData(conversationId: string): Promise<Conversation | null> {
     try {
       const session = this.db.prepare(`
-        SELECT s.*, p.name AS project_name
+        SELECT s.*, p.worktree AS project_worktree
         FROM session s
         LEFT JOIN project p ON p.id = s.project_id
         WHERE s.id = ?
@@ -52,7 +52,7 @@ export class OpenCodeStorage {
         id: session.id,
         metadata: {
           title: session.title || 'Untitled',
-          project: session.project_name || session.slug || 'unknown',
+          project: session.directory ? basename(session.directory.replace(/\\/g, '/')) : session.slug || 'unknown',
           directory: session.directory || '',
           created: session.time_created,
           updated: session.time_updated,
@@ -81,17 +81,31 @@ export class OpenCodeStorage {
       `).all(conversationId) as any[];
 
       const getParts = this.db.prepare(`
-        SELECT json_extract(data, '$.type') AS type,
-               json_extract(data, '$.text') AS text
-        FROM part
+        SELECT data FROM part
         WHERE message_id = ?
         ORDER BY time_created
       `);
 
       for (const row of rows) {
-        const parts = getParts.all(row.id) as { type: string; text: string | null }[];
-        const textParts = parts.filter(p => p.type === 'text');
-        const body = textParts.map(p => p.text || '').join('\n');
+        const rawParts = getParts.all(row.id) as { data: string }[];
+        const parts = rawParts.map(p => JSON.parse(p.data));
+
+        const reasoning = parts.filter(p => p.type === 'reasoning').map(p => p.text || '').join('\n');
+        const text = parts.filter(p => p.type === 'text').map(p => p.text || '').join('\n');
+        const tools = parts.filter(p => p.type === 'tool');
+
+        const toolLines = tools.map(t => {
+          const name = t.tool || 'unknown';
+          const status = t.state?.status || '';
+          const input = t.state?.input || {};
+          const inputSummary = JSON.stringify(input).substring(0, 120);
+          return `  🛠 ${name} ${inputSummary} → ${status}`;
+        }).join('\n');
+
+        const bodyParts: string[] = [];
+        if (reasoning) bodyParts.push(`[思考]\n${reasoning}`);
+        if (text) bodyParts.push(`[回复]\n${text}`);
+        if (toolLines) bodyParts.push(`[工具]\n${toolLines}`);
 
         messages.push({
           id: row.id,
@@ -99,7 +113,7 @@ export class OpenCodeStorage {
           role: row.role === 'assistant' ? 'assistant' : 'user',
           time: { created: row.time_created },
           summary: {
-            body: body.substring(0, 200)
+            body: bodyParts.join('\n\n').substring(0, 10000)
           }
         });
       }
