@@ -1,23 +1,23 @@
-import { promises as fs } from 'fs';
 import { join } from 'path';
 import { Conversation, SyncResult } from './types';
 import { OpenCodeStorage } from './opencode';
-import { readJsonFile, writeJsonFile, ensureDir, getMachineName } from './utils';
+import { ensureDir, writeJsonFile } from './utils';
+import { ISyncStorage, LocalSyncStorage } from './services/webdav-service';
 
 export class SyncManager {
   private opencodeStorage: OpenCodeStorage;
-  private syncPath: string;
-  private conversationsPath: string;
+  private syncStorage: ISyncStorage;
 
-  constructor(opencodePath: string, syncPath: string) {
+  constructor(opencodePath: string, syncPathOrStorage: string | ISyncStorage) {
     this.opencodeStorage = new OpenCodeStorage(opencodePath);
-    this.syncPath = syncPath;
-    this.conversationsPath = join(syncPath, 'conversations');
+    this.syncStorage = typeof syncPathOrStorage === 'string'
+      ? new LocalSyncStorage(syncPathOrStorage)
+      : syncPathOrStorage;
   }
 
   async check(): Promise<SyncResult> {
     const localConversations = await this.opencodeStorage.getConversations();
-    const syncConversations = await this.getSyncConversations();
+    const syncConversations = await this.syncStorage.listConversations();
 
     const result: SyncResult = {
       needsPush: [],
@@ -25,7 +25,6 @@ export class SyncManager {
       upToDate: []
     };
 
-    // Check all conversations from both sources
     const allConversationIds = new Set([
       ...localConversations.keys(),
       ...syncConversations.keys()
@@ -55,15 +54,14 @@ export class SyncManager {
       return;
     }
 
-    console.log(`Pushing ${result.needsPush.length} conversation(s)...`);
+    console.log(`Pushing ${result.needsPush.length} conversation(s) to ${this.syncStorage.name}...`);
     
-    await ensureDir(this.conversationsPath);
+    await this.syncStorage.ensureDir();
 
     for (const convId of result.needsPush) {
       const conversation = await this.opencodeStorage.getConversationData(convId);
       if (conversation) {
-        const syncFile = join(this.conversationsPath, `${convId}.json`);
-        await writeJsonFile(syncFile, conversation);
+        await this.syncStorage.writeConversation(convId, conversation);
         console.log(`  ✓ Pushed: ${convId} (${conversation.metadata.title})`);
       }
     }
@@ -79,13 +77,11 @@ export class SyncManager {
       return;
     }
 
-    console.log(`Pulling ${result.needsPull.length} conversation(s)...`);
+    console.log(`Pulling ${result.needsPull.length} conversation(s) from ${this.syncStorage.name}...`);
 
     for (const convId of result.needsPull) {
-      const syncFile = join(this.conversationsPath, `${convId}.json`);
-      
       try {
-        const conversation = await readJsonFile<Conversation>(syncFile);
+        const conversation = await this.syncStorage.readConversation(convId);
         await this.importConversation(conversation);
         console.log(`  ✓ Pulled: ${convId} (${conversation.metadata.title})`);
       } catch (error) {
@@ -94,33 +90,6 @@ export class SyncManager {
     }
 
     console.log('Pull completed successfully.');
-  }
-
-  private async getSyncConversations(): Promise<Map<string, number>> {
-    const conversations = new Map<string, number>();
-    
-    try {
-      await fs.access(this.conversationsPath);
-      const files = await fs.readdir(this.conversationsPath);
-      
-      for (const file of files) {
-        if (file.endsWith('.json')) {
-          const convId = file.replace('.json', '');
-          const filePath = join(this.conversationsPath, file);
-          
-          try {
-            const conversation = await readJsonFile<Conversation>(filePath);
-            conversations.set(convId, conversation.metadata.updated);
-          } catch (error) {
-            console.warn(`Warning: Could not read sync file ${file}:`, error);
-          }
-        }
-      }
-    } catch (error) {
-      // Sync directory doesn't exist yet
-    }
-    
-    return conversations;
   }
 
   private async importConversation(conversation: Conversation): Promise<void> {
@@ -133,11 +102,12 @@ export class SyncManager {
   
   // Static method for generic directory-to-directory sync
   static async syncDirectories(path1: string, path2: string): Promise<void> {
-    // Create sync instances for both directions
-    const sync1to2 = new DirectorySync(path1, path2);
-    const sync2to1 = new DirectorySync(path2, path1);
+    const storage1 = new LocalSyncStorage(path1);
+    const storage2 = new LocalSyncStorage(path2);
     
-    // Check both directions
+    const sync1to2 = new DirectorySync(storage1, storage2);
+    const sync2to1 = new DirectorySync(storage2, storage1);
+    
     const result1to2 = await sync1to2.check();
     const result2to1 = await sync2to1.check();
     
@@ -146,7 +116,6 @@ export class SyncManager {
       return;
     }
     
-    // Perform bidirectional sync
     if (result1to2.needsPush.length > 0) {
       console.log(`Pushing ${result1to2.needsPush.length} conversation(s) from ${path1} to ${path2}...`);
       await sync1to2.push();
@@ -161,39 +130,24 @@ export class SyncManager {
   }
 }
 
-// Helper class for generic directory-to-directory sync
 class DirectorySync {
-  constructor(private sourcePath: string, private targetPath: string) {}
+  constructor(private source: ISyncStorage, private target: ISyncStorage) {}
   
   async check(): Promise<SyncResult> {
-    const result: SyncResult = {
-      needsPush: [],
-      needsPull: [],
-      upToDate: []
-    };
+    const result: SyncResult = { needsPush: [], needsPull: [], upToDate: [] };
     
     try {
-      // Get conversations from source directory
-      const sourceConversations = await this.getDirectoryConversations(this.sourcePath);
-      const targetConversations = await this.getDirectoryConversations(this.targetPath);
+      const sourceConvs = await this.source.listConversations();
+      const targetConvs = await this.target.listConversations();
       
-      // Check all conversations from both sources
-      const allConversationIds = new Set([
-        ...sourceConversations.keys(),
-        ...targetConversations.keys()
-      ]);
+      const allIds = new Set([...sourceConvs.keys(), ...targetConvs.keys()]);
       
-      for (const convId of allConversationIds) {
-        const sourceUpdated = sourceConversations.get(convId) || 0;
-        const targetUpdated = targetConversations.get(convId) || 0;
-        
-        if (sourceUpdated > targetUpdated) {
-          result.needsPush.push(convId);
-        } else if (targetUpdated > sourceUpdated) {
-          result.needsPull.push(convId);
-        } else if (sourceUpdated > 0) {
-          result.upToDate.push(convId);
-        }
+      for (const id of allIds) {
+        const src = sourceConvs.get(id) || 0;
+        const tgt = targetConvs.get(id) || 0;
+        if (src > tgt) result.needsPush.push(id);
+        else if (tgt > src) result.needsPull.push(id);
+        else if (src > 0) result.upToDate.push(id);
       }
     } catch (error) {
       console.warn('Warning: Could not check directory sync:', error);
@@ -204,52 +158,18 @@ class DirectorySync {
   
   async push(): Promise<void> {
     const result = await this.check();
+    if (result.needsPush.length === 0) return;
     
-    if (result.needsPush.length === 0) {
-      return;
-    }
+    await this.target.ensureDir();
     
-    await ensureDir(join(this.targetPath, 'conversations'));
-    
-    for (const convId of result.needsPush) {
-      const sourceFile = join(this.sourcePath, 'conversations', `${convId}.json`);
-      const targetFile = join(this.targetPath, 'conversations', `${convId}.json`);
-      
+    for (const id of result.needsPush) {
       try {
-        const conversation = await readJsonFile<Conversation>(sourceFile);
-        await writeJsonFile(targetFile, conversation);
-        console.log(`  ✓ Pushed: ${convId} (${conversation.metadata.title})`);
+        const conv = await this.source.readConversation(id);
+        await this.target.writeConversation(id, conv);
+        console.log(`  ✓ Pushed: ${id} (${conv.metadata.title})`);
       } catch (error) {
-        console.error(`  ✗ Failed to push ${convId}:`, error);
+        console.error(`  ✗ Failed to push ${id}:`, error);
       }
     }
-  }
-  
-  private async getDirectoryConversations(dirPath: string): Promise<Map<string, number>> {
-    const conversations = new Map<string, number>();
-    
-    try {
-      const conversationsPath = join(dirPath, 'conversations');
-      await fs.access(conversationsPath);
-      const files = await fs.readdir(conversationsPath);
-      
-      for (const file of files) {
-        if (file.endsWith('.json')) {
-          const convId = file.replace('.json', '');
-          const filePath = join(conversationsPath, file);
-          
-          try {
-            const conversation = await readJsonFile<Conversation>(filePath);
-            conversations.set(convId, conversation.metadata.updated);
-          } catch (error) {
-            console.warn(`Warning: Could not read conversation file ${file}:`, error);
-          }
-        }
-      }
-    } catch (error) {
-      // Directory doesn't exist or is not accessible, return empty map
-    }
-    
-    return conversations;
   }
 }

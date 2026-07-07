@@ -2,14 +2,28 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { SyncService } from './services/sync-service';
+import { RemoteOptions, SyncService } from './services/sync-service';
 import { ImportService } from './services/import-service';
 import { PathService } from './services/path-service';
-import { serve } from './web/server';
+import { serve, serveFromSyncDir } from './web/server';
 
 const program = new Command();
 const syncService = new SyncService();
 const importService = new ImportService('./imported');
+
+function getRemoteOptions(opts: any): RemoteOptions | undefined {
+  if (opts.remoteUrl) {
+    return { url: opts.remoteUrl, prefix: opts.remotePrefix, username: opts.remoteUser, password: opts.remotePass };
+  }
+  return undefined;
+}
+
+const remoteOptions = [
+  ['--remote-url <url>', 'WebDAV URL (e.g. https://server.com/dav)'],
+  ['--remote-user <user>', 'WebDAV username'],
+  ['--remote-pass <pass>', 'WebDAV password'],
+  ['--remote-prefix <path>', 'WebDAV path prefix'],
+] as const;
 
 program
   .name('opencode-sync')
@@ -28,29 +42,33 @@ program
     }
   });
 
-program
+const pushCmd = program
   .command('push [path]')
-  .description('Push local conversations to sync directory (optional path overrides OPENCODE_SYNC_DIR)')
-  .action(async (path) => {
-    try {
-      await syncService.pushConversations(path);
-    } catch (error) {
-      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-      process.exit(1);
-    }
-  });
+  .description('Push local conversations to sync directory (or --remote-url for WebDAV)');
+for (const [flags, desc] of remoteOptions) pushCmd.option(flags, desc);
+pushCmd.action(async (path, options) => {
+  try {
+    const remote = getRemoteOptions(options);
+    await syncService.pushConversations(remote || path);
+  } catch (error) {
+    console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+});
 
-program
+const pullCmd = program
   .command('pull [path]')
-  .description('Pull conversations from sync directory to local (optional path overrides OPENCODE_SYNC_DIR)')
-  .action(async (path) => {
-    try {
-      await syncService.pullConversations(path);
-    } catch (error) {
-      console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
-      process.exit(1);
-    }
-  });
+  .description('Pull conversations from sync directory (or --remote-url for WebDAV)');
+for (const [flags, desc] of remoteOptions) pullCmd.option(flags, desc);
+pullCmd.action(async (path, options) => {
+  try {
+    const remote = getRemoteOptions(options);
+    await syncService.pullConversations(remote || path);
+  } catch (error) {
+    console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+});
 
 program
   .command('sync [path1] [path2]')
@@ -109,13 +127,14 @@ program
   .command('serve')
   .description('Start web UI for browsing and searching conversations')
   .option('-p, --port <port>', 'Port to listen on', '3000')
+  .option('--sync-dir <path>', 'Also serve from sync dir (local path or https:// URL for WebDAV)')
   .action(async (options) => {
     try {
+      const port = parseInt(options.port, 10);
       const pathService = new PathService();
       const { opencodePath } = await pathService.getPaths();
-      const port = parseInt(options.port, 10);
       console.log(chalk.blue(`Starting OpenCode Web UI on port ${port}...`));
-      await serve(opencodePath, port);
+      await serve(opencodePath, port, options.syncDir || undefined);
     } catch (error) {
       console.error(chalk.red('Error:'), error instanceof Error ? error.message : error);
       process.exit(1);

@@ -1,6 +1,14 @@
 import { SyncManager } from '../sync';
 import { PathService, PathConfig, SyncPathConfig } from './path-service';
+import { WebDAVSyncStorage } from './webdav-service';
 import chalk from 'chalk';
+
+export interface RemoteOptions {
+  url: string;
+  prefix?: string;
+  username?: string;
+  password?: string;
+}
 
 export class SyncService {
   private pathService: PathService;
@@ -17,16 +25,32 @@ export class SyncService {
     this.displayCheckResult(result);
   }
 
-  async pushConversations(syncPathOverride?: string): Promise<void> {
-    const { opencodePath, syncPath } = await this.pathService.getPaths(syncPathOverride);
-    const sync = new SyncManager(opencodePath, syncPath);
-    await sync.push();
+  async pushConversations(syncPathOrRemote?: string | RemoteOptions): Promise<void> {
+    if (typeof syncPathOrRemote === 'object') {
+      const { opencodePath } = await this.pathService.getPaths();
+      const remote = syncPathOrRemote as RemoteOptions;
+      const storage = new WebDAVSyncStorage(remote.url, remote.prefix || '', remote.username, remote.password);
+      const sync = new SyncManager(opencodePath, storage);
+      await sync.push();
+    } else {
+      const { opencodePath, syncPath } = await this.pathService.getPaths(syncPathOrRemote as string);
+      const sync = new SyncManager(opencodePath, syncPath);
+      await sync.push();
+    }
   }
 
-  async pullConversations(syncPathOverride?: string): Promise<void> {
-    const { opencodePath, syncPath } = await this.pathService.getPaths(syncPathOverride);
-    const sync = new SyncManager(opencodePath, syncPath);
-    await sync.pull();
+  async pullConversations(syncPathOrRemote?: string | RemoteOptions): Promise<void> {
+    if (typeof syncPathOrRemote === 'object') {
+      const { opencodePath } = await this.pathService.getPaths();
+      const remote = syncPathOrRemote as RemoteOptions;
+      const storage = new WebDAVSyncStorage(remote.url, remote.prefix || '', remote.username, remote.password);
+      const sync = new SyncManager(opencodePath, storage);
+      await sync.pull();
+    } else {
+      const { opencodePath, syncPath } = await this.pathService.getPaths(syncPathOrRemote as string);
+      const sync = new SyncManager(opencodePath, syncPath);
+      await sync.pull();
+    }
   }
 
   async syncConversations(path1?: string, path2?: string): Promise<void> {

@@ -125,6 +125,9 @@ header h1 { font-size: 16px; white-space: nowrap; }
     <input type="text" id="searchInput" placeholder="搜索对话..." autofocus>
     <button id="searchBtn">搜索</button>
   </div>
+  <select id="sourceSwitch" style="font-size:12px;padding:4px 8px;border:none;border-radius:4px;background:rgba(255,255,255,0.15);color:#fff;outline:none;cursor:pointer">
+    <option value="">加载中...</option>
+  </select>
   <span class="stats" id="stats"></span>
 </header>
 <div id="app">
@@ -156,6 +159,22 @@ const stats = document.getElementById('stats');
 let allSessions = [];
 let currentProject = '';
 let selectedId = null;
+let currentSource = '';
+
+function api(path) {
+  return path + (currentSource ? (path.includes('?') ? '&' : '?') + 'source=' + encodeURIComponent(currentSource) : '');
+}
+
+async function loadSources() {
+  const res = await fetch('/api/sources');
+  const data = await res.json();
+  const sel = document.getElementById('sourceSwitch');
+  if (data.sources.length <= 1) { sel.style.display = 'none'; return; }
+  sel.innerHTML = data.sources.map(s => `<option value="${s.id}">${s.label}</option>`).join('');
+  currentSource = data.default;
+  sel.value = currentSource;
+  sel.onchange = () => { currentSource = sel.value; loadProjects(); };
+}
 
 async function loadProjects() {
   const res = await fetch('/api/projects');
@@ -184,7 +203,7 @@ async function selectProject(name) {
 }
 
 async function loadConversations(project) {
-  const url = project ? `/api/conversations?project=${encodeURIComponent(project)}` : '/api/conversations';
+  const url = project ? api(`/api/conversations?project=${encodeURIComponent(project)}`) : api('/api/conversations');
   const res = await fetch(url);
   const data = await res.json();
   allSessions = data.conversations;
@@ -206,7 +225,7 @@ async function selectConv(id) {
   selectedId = id;
   renderConvList(allSessions);
 
-  const res = await fetch(`/api/conversations/${encodeURIComponent(id)}`);
+  const res = await fetch(api(`/api/conversations/${encodeURIComponent(id)}`));
   if (!res.ok) return;
   const conv = await res.json();
 
@@ -240,7 +259,7 @@ async function selectConv(id) {
 async function doSearch() {
   const q = searchInput.value.trim();
   if (!q) { loadConversations(currentProject); return; }
-  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+  const res = await fetch(api(`/api/search?q=${encodeURIComponent(q)}`));
   const data = await res.json();
   allSessions = data.results.map(r => ({ id: r.sessionId, title: r.title, snippet: r.snippet, updated: 0 }));
   convHeader.textContent = `搜索结果 (${data.total})`;
@@ -256,15 +275,8 @@ searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch()
 function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 (async () => {
+  await loadSources();
   await loadProjects();
-  // Store projects for re-render
-  const projRes = await fetch('/api/projects');
-  document.getElementById('__projects')?.remove();
-  const script = document.createElement('script');
-  script.id = '__projects';
-  script.type = 'application/json';
-  script.textContent = JSON.stringify((await projRes.json()).projects);
-  document.body.appendChild(script);
   await loadConversations('');
 })();
 </script>
