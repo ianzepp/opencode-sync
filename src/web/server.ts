@@ -8,7 +8,7 @@ import { SearchIndex, SearchResult } from './search';
 import { Conversation } from '../types';
 
 interface ConvSummary {
-  id: string; title: string; project: string; updated: number;
+  id: string; title: string; project: string; updated: number; source?: string;
 }
 
 interface ProjectInfo {
@@ -19,32 +19,61 @@ interface ConversationProvider {
   projects(src?: string): ProjectInfo[] | Promise<ProjectInfo[]>;
   list(projectFilter?: string, src?: string): ConvSummary[] | Promise<ConvSummary[]>;
   get(id: string, src?: string): Promise<Conversation | null>;
-  search(query: string, src?: string): SearchResult[] | Promise<SearchResult[]>;
+  search(query: string, src?: string, projectFilter?: string): SearchResult[] | Promise<SearchResult[]>;
   close(): void;
 }
 
 class SQLiteProvider implements ConversationProvider {
   private storage: OpenCodeStorage;
   private storagePath: string;
+  private sessionPathColumn: 'directory' | 'path';
 
   constructor(storagePath: string) {
     this.storage = new OpenCodeStorage(storagePath);
     this.storagePath = storagePath;
+
+    const db = new Database(join(storagePath, '..', 'opencode.db'), { readonly: true });
+    const columns = db.prepare('PRAGMA table_info(session)').all() as { name: string }[];
+    db.close();
+    this.sessionPathColumn = columns.some(c => c.name === 'directory') ? 'directory' : 'path';
   }
 
   private projectName(dir: string): string {
     return dir ? basename(dir.replace(/\\/g, '/')) : '';
   }
 
-  private loadAll(): { id: string; title: string; directory: string; time_updated: number }[] {
-    const db = new Database(join(this.storagePath, '..', 'opencode.db'), { readonly: true });
-    const rows = db.prepare("SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC").all() as any[];
-    db.close();
-    return rows;
+  private sourceCondition(source?: string): string {
+    if (source === 'codex') return "LOWER(COALESCE(s.agent, '')) = 'codex'";
+    if (source === 'opencode') return "LOWER(COALESCE(s.agent, '')) <> 'codex'";
+    return '1 = 1';
   }
 
-  projects(): ProjectInfo[] {
-    const sessions = this.loadAll();
+  private loadAll(source?: string): {
+    id: string;
+    title: string;
+    directory: string;
+    time_updated: number;
+    source: 'opencode' | 'codex';
+  }[] {
+    const db = new Database(join(this.storagePath, '..', 'opencode.db'), { readonly: true });
+    try {
+      const pathExpression = `COALESCE(NULLIF(p.worktree, ''), NULLIF(s.${this.sessionPathColumn}, ''), '')`;
+      const rows = db.prepare(`
+        SELECT s.id, s.title, ${pathExpression} AS directory, s.time_updated,
+               CASE WHEN LOWER(COALESCE(s.agent, '')) = 'codex' THEN 'codex' ELSE 'opencode' END AS source
+        FROM session s
+        LEFT JOIN project p ON p.id = s.project_id
+        WHERE ${this.sourceCondition(source)}
+        ORDER BY s.time_updated DESC
+      `).all() as any[];
+      return rows;
+    } finally {
+      db.close();
+    }
+  }
+
+  projects(source?: string): ProjectInfo[] {
+    const sessions = this.loadAll(source);
     const map = new Map<string, { count: number; lastUpdated: number }>();
     for (const s of sessions) {
       const name = this.projectName(s.directory);
@@ -56,21 +85,40 @@ class SQLiteProvider implements ConversationProvider {
     return [...map.entries()].map(([n, i]) => ({ name: n, count: i.count, lastUpdated: i.lastUpdated })).sort((a, b) => b.lastUpdated - a.lastUpdated);
   }
 
-  list(projectFilter?: string): ConvSummary[] {
-    const sessions = this.loadAll();
+  list(projectFilter?: string, source?: string): ConvSummary[] {
+    const sessions = this.loadAll(source);
     const filtered = projectFilter ? sessions.filter(s => this.projectName(s.directory) === projectFilter) : sessions;
-    return filtered.map(r => ({ id: r.id, title: r.title, project: this.projectName(r.directory), updated: r.time_updated }));
+    return filtered.map(r => ({
+      id: r.id,
+      title: r.title,
+      project: this.projectName(r.directory),
+      updated: r.time_updated,
+      source: r.source
+    }));
   }
 
-  async get(id: string): Promise<Conversation | null> {
+  async get(id: string, source?: string): Promise<Conversation | null> {
+    if (source === 'opencode' || source === 'codex') {
+      const db = new Database(join(this.storagePath, '..', 'opencode.db'), { readonly: true });
+      try {
+        const row = db.prepare(`
+          SELECT CASE WHEN LOWER(COALESCE(agent, '')) = 'codex' THEN 'codex' ELSE 'opencode' END AS source
+          FROM session WHERE id = ?
+        `).get(id) as { source?: string } | undefined;
+        if (!row || row.source !== source) return null;
+      } finally {
+        db.close();
+      }
+    }
     return this.storage.getConversationData(id);
   }
 
-  search(query: string): SearchResult[] {
+  search(query: string, source?: string, projectFilter?: string): SearchResult[] {
     const dbPath = join(this.storagePath, '..', 'opencode.db');
     const search = new SearchIndex(':memory:');
     search.rebuild(dbPath);
-    const results = search.search(query);
+    const sourceFilter = source === 'opencode' || source === 'codex' ? source : undefined;
+    const results = search.search(query, { source: sourceFilter, project: projectFilter });
     search.close();
     return results;
   }
@@ -124,10 +172,11 @@ class JSONProvider implements ConversationProvider {
     } catch { return null; }
   }
 
-  search(query: string): SearchResult[] {
+  search(query: string, _source?: string, projectFilter?: string): SearchResult[] {
     const q = query.toLowerCase();
     const results: SearchResult[] = [];
     for (const { id, conv } of this.scan()) {
+      if (projectFilter && conv.metadata.project !== projectFilter) continue;
       const content = (conv.metadata.title + ' ' + conv.messages.map(m => m.summary.body || '').join(' ')).toLowerCase();
       const idx = content.indexOf(q);
       if (idx >= 0) {
@@ -203,11 +252,12 @@ class WebDAVProvider implements ConversationProvider {
     } catch { return null; }
   }
 
-  async search(query: string): Promise<SearchResult[]> {
+  async search(query: string, _source?: string, projectFilter?: string): Promise<SearchResult[]> {
     const q = query.toLowerCase();
     const items = await this.scan();
     const results: SearchResult[] = [];
     for (const { id, conv } of items) {
+      if (projectFilter && conv.metadata.project !== projectFilter) continue;
       const content = (conv.metadata.title + ' ' + conv.messages.map(m => m.summary.body || '').join(' ')).toLowerCase();
       const idx = content.indexOf(q);
       if (idx >= 0) {
@@ -229,38 +279,93 @@ class WebDAVProvider implements ConversationProvider {
   close() {}
 }
 
-class MultiProvider implements ConversationProvider {
-  providers: Map<string, ConversationProvider> = new Map();
-  private defaultSource = '';
-
-  constructor(db?: ConversationProvider, sync?: ConversationProvider) {
-    if (db) { this.providers.set('database', db); this.defaultSource = 'database'; }
-    if (sync) { this.providers.set('sync', sync); if (!this.defaultSource) this.defaultSource = 'sync'; }
-  }
+class SourceProvider implements ConversationProvider {
+  constructor(private database: SQLiteProvider, private sync?: ConversationProvider) {}
 
   sources() {
-    return [...this.providers.keys()].map(key => ({
-      id: key, label: key === 'database' ? '数据库 (opencode.db)' : '同步文件 (JSON)'
-    }));
+    const sources = [
+      { id: 'all', label: '全部' },
+      { id: 'opencode', label: 'OpenCode' },
+      { id: 'codex', label: 'Codex' }
+    ];
+    if (this.sync) sources.push({ id: 'sync', label: '同步文件 (JSON)' });
+    return sources;
   }
 
-  async getProvider(src?: string): Promise<ConversationProvider> {
-    return this.providers.get(src || '') || this.providers.get(this.defaultSource)!;
+  private mergeProjects(groups: ProjectInfo[][]): ProjectInfo[] {
+    const merged = new Map<string, { count: number; lastUpdated: number }>();
+    for (const projects of groups) {
+      for (const project of projects) {
+        const previous = merged.get(project.name);
+        if (previous) {
+          previous.count += project.count;
+          if (project.lastUpdated > previous.lastUpdated) previous.lastUpdated = project.lastUpdated;
+        } else {
+          merged.set(project.name, { count: project.count, lastUpdated: project.lastUpdated });
+        }
+      }
+    }
+    return [...merged.entries()]
+      .map(([name, info]) => ({ name, count: info.count, lastUpdated: info.lastUpdated }))
+      .sort((a, b) => b.lastUpdated - a.lastUpdated);
   }
 
   async projects(src?: string): Promise<ProjectInfo[]> {
-    return this.getProvider(src).then(p => p.projects()) as Promise<ProjectInfo[]>;
+    if (src === 'opencode' || src === 'codex') return this.database.projects(src);
+    if (src === 'sync') return this.sync ? Promise.resolve(this.sync.projects()) : [];
+
+    const groups: ProjectInfo[][] = [this.database.projects()];
+    if (this.sync) groups.push(await Promise.resolve(this.sync.projects()));
+    return this.mergeProjects(groups);
   }
+
   async list(projectFilter?: string, src?: string): Promise<ConvSummary[]> {
-    return this.getProvider(src).then(p => p.list(projectFilter)) as Promise<ConvSummary[]>;
+    if (src === 'opencode' || src === 'codex') return this.database.list(projectFilter, src);
+    if (src === 'sync') {
+      return this.sync
+        ? (await Promise.resolve(this.sync.list(projectFilter))).map(c => ({ ...c, source: 'sync' }))
+        : [];
+    }
+
+    const databaseList = await Promise.resolve(this.database.list(projectFilter));
+    const syncList = this.sync
+      ? (await Promise.resolve(this.sync.list(projectFilter))).map(c => ({ ...c, source: 'sync' }))
+      : [];
+    return [...databaseList, ...syncList].sort((a, b) => b.updated - a.updated);
   }
-  get(id: string, src?: string): Promise<Conversation | null> { return this.getProvider(src).then(p => p.get(id)); }
-  async search(query: string, src?: string): Promise<SearchResult[]> { const p = await this.getProvider(src); const r = p.search(query); return r instanceof Promise ? r : Promise.resolve(r); }
-  close() { for (const p of this.providers.values()) p.close(); }
+
+  async get(id: string, src?: string): Promise<Conversation | null> {
+    if (src === 'opencode' || src === 'codex') return this.database.get(id, src);
+    if (src === 'sync') return this.sync ? this.sync.get(id) : null;
+
+    const databaseConversation = await this.database.get(id);
+    if (databaseConversation) return databaseConversation;
+    return this.sync ? this.sync.get(id) : null;
+  }
+
+  async search(query: string, src?: string, projectFilter?: string): Promise<SearchResult[]> {
+    if (src === 'opencode' || src === 'codex') return this.database.search(query, src, projectFilter);
+    if (src === 'sync') {
+      return this.sync
+        ? (await Promise.resolve(this.sync.search(query, undefined, projectFilter))).map(r => ({ ...r, source: 'sync' }))
+        : [];
+    }
+
+    const databaseResults = await Promise.resolve(this.database.search(query, undefined, projectFilter));
+    const syncResults = this.sync
+      ? (await Promise.resolve(this.sync.search(query, undefined, projectFilter))).map(r => ({ ...r, source: 'sync' }))
+      : [];
+    return [...databaseResults, ...syncResults].sort((a, b) => a.score - b.score).slice(0, 50);
+  }
+
+  close() {
+    this.database.close();
+    this.sync?.close();
+  }
 }
 
 export function createApp(provider: ConversationProvider) {
-  const isMulti = provider instanceof MultiProvider;
+  const isMulti = provider instanceof SourceProvider;
   const app = express();
 
   app.use(express.json());
@@ -271,7 +376,7 @@ export function createApp(provider: ConversationProvider) {
 
   if (isMulti) {
     app.get('/api/sources', (_req, res) => {
-      res.json({ sources: (provider as MultiProvider).sources(), default: (provider as MultiProvider).sources()[0]?.id || '' });
+      res.json({ sources: (provider as SourceProvider).sources(), default: (provider as SourceProvider).sources()[0]?.id || '' });
     });
   } else {
     app.get('/api/sources', (_req, res) => {
@@ -286,7 +391,7 @@ export function createApp(provider: ConversationProvider) {
   app.get('/api/projects', async (req, res) => {
     try {
       const src = sourceStr(req);
-      const projs = isMulti ? await (provider as MultiProvider).projects(src) : await provider.projects();
+      const projs = isMulti ? await (provider as SourceProvider).projects(src) : await provider.projects();
       res.json({ projects: projs });
     } catch (error) { res.status(500).json({ error: String(error) }); }
   });
@@ -295,7 +400,7 @@ export function createApp(provider: ConversationProvider) {
     try {
       const filterProject = (req.query.project as string) || '';
       const src = sourceStr(req);
-      const list = isMulti ? await (provider as MultiProvider).list(filterProject, src) : await provider.list(filterProject);
+      const list = isMulti ? await (provider as SourceProvider).list(filterProject, src) : await provider.list(filterProject);
       res.json({ total: list.length, conversations: list });
     } catch (error) { res.status(500).json({ error: String(error) }); }
   });
@@ -303,7 +408,7 @@ export function createApp(provider: ConversationProvider) {
   app.get('/api/conversations/:id', async (req, res) => {
     try {
       const src = sourceStr(req);
-      const conv = isMulti ? await (provider as MultiProvider).get(req.params.id, src) : await provider.get(req.params.id);
+      const conv = isMulti ? await (provider as SourceProvider).get(req.params.id, src) : await provider.get(req.params.id);
       if (!conv) { res.status(404).json({ error: 'Conversation not found' }); return; }
       res.json(conv);
     } catch (error) { res.status(500).json({ error: String(error) }); }
@@ -311,10 +416,13 @@ export function createApp(provider: ConversationProvider) {
 
   app.get('/api/search', async (req, res) => {
     const q = req.query.q as string;
+    const filterProject = (req.query.project as string) || '';
     if (!q || !q.trim()) { res.json({ results: [] }); return; }
     try {
       const src = sourceStr(req);
-      const r: SearchResult[] = isMulti ? await (provider as MultiProvider).search(q, src) : await provider.search(q) as SearchResult[];
+      const r: SearchResult[] = isMulti
+        ? await (provider as SourceProvider).search(q, src, filterProject)
+        : await provider.search(q, undefined, filterProject) as SearchResult[];
       res.json({ query: q, total: r.length, results: r });
     } catch { res.json({ results: [] }); }
   });
@@ -345,12 +453,13 @@ function labelFor(source: ConversationProvider): string {
 export async function serve(storagePath: string, port: number, syncDir?: string) {
   const dbProvider = new SQLiteProvider(storagePath);
   const syncProvider = syncDir ? createSyncProvider(syncDir) : undefined;
-  const provider = syncProvider ? new MultiProvider(dbProvider, syncProvider) : dbProvider;
+  const provider = new SourceProvider(dbProvider, syncProvider);
+
   const { app, close } = createApp(provider);
 
   console.log(`OpenCode Web UI: http://localhost:${port}`);
   console.log(`  Source: database (opencode.db)`);
-  if (syncProvider) console.log(`  + ${labelFor(syncProvider)} (${syncDir})`);
+  if (syncDir) console.log(`  + sync files (${syncDir})`);
 
   app.listen(port, () => {});
   process.on('SIGINT', () => { close(); process.exit(0); });

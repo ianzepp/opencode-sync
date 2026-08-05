@@ -4,6 +4,7 @@ import { Conversation, Message } from './types';
 
 export class OpenCodeStorage {
   private db: Database.Database;
+  private sessionPathColumn: 'directory' | 'path';
   readonly storagePath: string;
 
   constructor(storagePath: string) {
@@ -11,6 +12,8 @@ export class OpenCodeStorage {
     const dbPath = join(storagePath, '..', 'opencode.db');
     this.db = new Database(dbPath, { readonly: true });
     this.db.pragma('journal_mode = WAL');
+    const columns = this.db.prepare('PRAGMA table_info(session)').all() as { name: string }[];
+    this.sessionPathColumn = columns.some(c => c.name === 'directory') ? 'directory' : 'path';
   }
 
   close(): void {
@@ -38,7 +41,8 @@ export class OpenCodeStorage {
   async getConversationData(conversationId: string): Promise<Conversation | null> {
     try {
       const session = this.db.prepare(`
-        SELECT s.*, p.worktree AS project_worktree
+        SELECT s.*, p.worktree AS project_worktree,
+               s.${this.sessionPathColumn} AS session_path
         FROM session s
         LEFT JOIN project p ON p.id = s.project_id
         WHERE s.id = ?
@@ -52,8 +56,10 @@ export class OpenCodeStorage {
         id: session.id,
         metadata: {
           title: session.title || 'Untitled',
-          project: session.directory ? basename(session.directory.replace(/\\/g, '/')) : session.slug || 'unknown',
-          directory: session.directory || '',
+          project: (session.project_worktree || session.session_path)
+            ? basename((session.project_worktree || session.session_path).replace(/\\/g, '/'))
+            : session.slug || 'unknown',
+          directory: session.project_worktree || session.session_path || '',
           created: session.time_created,
           updated: session.time_updated,
           machine: require('os').hostname()

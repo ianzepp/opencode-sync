@@ -4,6 +4,7 @@ import { ImportResult, ImportStrategy } from '../types';
 import { ClaudeImportStrategy } from '../importers/claude';
 import { ChatGPTImportStrategy } from '../importers/chatgpt';
 import { ClaudeCodeRawImportStrategy } from '../importers/claude-code-raw';
+import { CodexCLIImportStrategy } from '../importers/codex-cli';
 import chalk from 'chalk';
 
 export class ImportService {
@@ -30,6 +31,10 @@ export class ImportService {
     // Register Claude Code raw format
     const claudeCodeRawStrategy = new ClaudeCodeRawImportStrategy(this.importManager.getArchivePath());
     this.importManager.registerStrategy(claudeCodeRawStrategy);
+
+    // Register Codex CLI format
+    const codexCliStrategy = new CodexCLIImportStrategy(this.importManager.getArchivePath());
+    this.importManager.registerStrategy(codexCliStrategy);
   }
 
   async importFrom(
@@ -100,6 +105,8 @@ export class ImportService {
           return new ChatGPTImportStrategy(this.importManager.getArchivePath());
         case 'claude-code-raw':
           return new ClaudeCodeRawImportStrategy(this.importManager.getArchivePath());
+        case 'codex-cli':
+          return new CodexCLIImportStrategy(this.importManager.getArchivePath());
         default:
           throw new Error(`Strategy for format ${format} not found`);
       }

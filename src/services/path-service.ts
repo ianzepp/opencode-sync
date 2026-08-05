@@ -15,6 +15,10 @@ export interface SyncPathConfig {
 }
 
 export class PathService {
+  static readonly CODEX_CANDIDATES = [
+    join(os.homedir(), '.codex'),
+  ];
+
   private static readonly OPENCODE_CANDIDATES = [
     join(os.homedir(), '.local', 'share', 'opencode', 'storage'),
     join(os.homedir(), 'Library', 'Application Support', 'opencode', 'storage'),
@@ -149,6 +153,22 @@ export class PathService {
       path2: '',
       opencodePath
     };
+  }
+
+  async detectCodexPath(pathOverride?: string): Promise<string | undefined> {
+    const configuredPath = pathOverride?.trim() || process.env.CODEX_HOME?.trim();
+    const candidates = configuredPath ? [configuredPath] : PathService.CODEX_CANDIDATES;
+
+    for (const candidate of candidates) {
+      try {
+        await fs.access(candidate);
+        const entries = await fs.readdir(candidate);
+        const hasStateDb = entries.some(f => f.startsWith('state_') && f.endsWith('.sqlite'));
+        const hasSessions = entries.some(f => f === 'sessions');
+        if (hasStateDb && hasSessions) return candidate;
+      } catch { continue; }
+    }
+    return undefined;
   }
 
   private createOpenCodeNotFoundError(): Error {

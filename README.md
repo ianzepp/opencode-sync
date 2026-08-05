@@ -53,6 +53,9 @@ export OPENCODE_STORAGE_DIR="$HOME/.local/share/opencode/storage"
 
 # Required: Path to your sync directory (USB, cloud storage, etc.)
 export OPENCODE_SYNC_DIR="/path/to/your/sync/directory"
+
+# Optional: Path to Codex CLI home; serve loads Codex conversations when set
+export CODEX_HOME="$HOME/.codex"
 ```
 
 Add these to your `.bashrc`, `.zshrc`, or shell profile to make them permanent.
@@ -121,7 +124,7 @@ opencode-sync import /path/to/conversations --format chatgpt
 opencode-sync import /path/to/conversations --format claude --preview
 ```
 
-**Supported formats:** `opencode`, `claude`, `chatgpt`, `claude-code-raw`
+**Supported formats:** `opencode`, `claude`, `chatgpt`, `claude-code-raw`, `codex-cli`
 
 ### Scan directory for conversation formats
 ```bash
@@ -185,6 +188,15 @@ sync-directory/
 |----------|----------|-------------|---------|
 | `OPENCODE_STORAGE_DIR` | ✅ | Path to OpenCode storage | `$HOME/.local/share/opencode/storage` |
 | `OPENCODE_SYNC_DIR` | ✅ | Path to sync directory | `/Volumes/USB/opencode-sync` |
+| `CODEX_HOME` | No | Path to Codex CLI home directory | `$HOME/.codex` |
+
+`CODEX_HOME` is optional. When set, `opencode-sync serve` automatically imports
+Codex CLI conversations into `opencode.db` and marks them as `codex`. The Web
+UI reads only the database and provides `opencode` and `codex` source filters.
+The selected source and project are also applied to conversation lists and
+search results.
+Use `--codex-path <path>` to override it. To import them without starting the
+web UI, run `opencode-sync sync-codex`.
 
 ## Tech Stack
 
@@ -216,6 +228,54 @@ npm start serve
 
 # Run locally
 npm start --help
+```
+
+### Windows Web UI startup and quick restart
+
+Set `OPENCODE_STORAGE_DIR`, `OPENCODE_SYNC_DIR`, and optionally `CODEX_HOME` in
+the user environment, or edit the startup defaults at the top of `webui.ps1`.
+The launcher sets these variables before starting Node, so the scheduled task
+does not depend on a temporary terminal session.
+
+Build the project and register the Web UI to start when the current user logs in:
+
+```powershell
+npm.cmd install
+npm.cmd run build
+npm.cmd run web:install-task
+```
+
+Run the Web UI directly in the background:
+
+```powershell
+npm.cmd run web:start
+```
+
+Manually start the registered task:
+
+```powershell
+Start-ScheduledTask -TaskName "opencode-sync-webui"
+```
+
+After changing source code, rebuild and restart it with:
+
+```powershell
+npm.cmd run web:restart
+```
+
+Check the registered task:
+
+```powershell
+Get-ScheduledTask -TaskName "opencode-sync-webui"
+Get-ScheduledTaskInfo -TaskName "opencode-sync-webui"
+```
+
+The process runs in the background. Its output is written to `logs/`. To stop
+the process or remove the startup task:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\webui.ps1 -Action stop
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\webui.ps1 -Action remove-task
 ```
 
 ## License

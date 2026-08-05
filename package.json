@@ -11,6 +11,9 @@
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build",
     "start": "node dist/cli.js",
+    "web:start": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\webui.ps1 -Action start",
+    "web:restart": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\webui.ps1 -Action restart",
+    "web:install-task": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\webui.ps1 -Action install-task",
     "test": "echo \"No tests specified\" && exit 0"
   },
   "keywords": [

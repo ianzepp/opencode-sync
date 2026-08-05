@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { basename } from 'path';
 import { join } from 'path';
 
 export interface SearchResult {
@@ -6,6 +7,12 @@ export interface SearchResult {
   title: string;
   snippet: string;
   score: number;
+  source?: string;
+}
+
+export interface SearchFilters {
+  source?: 'opencode' | 'codex';
+  project?: string;
 }
 
 export class SearchIndex {
@@ -26,6 +33,8 @@ export class SearchIndex {
         title,
         content,
         messages_count,
+        source UNINDEXED,
+        project UNINDEXED,
         tokenize='unicode61'
       );
     `);
@@ -38,17 +47,30 @@ export class SearchIndex {
     this.indexDb.exec('DELETE FROM conv_fts');
 
     const insert = this.indexDb.prepare(
-      'INSERT INTO conv_fts (session_id, title, content, messages_count) VALUES (?, ?, ?, ?)'
+      'INSERT INTO conv_fts (session_id, title, content, messages_count, source, project) VALUES (?, ?, ?, ?, ?, ?)'
     );
 
+    const sessionColumns = source.prepare('PRAGMA table_info(session)').all() as { name: string }[];
+    const sessionPathColumn = sessionColumns.some(c => c.name === 'directory') ? 'directory' : 'path';
+
     const rows = source.prepare(`
-      SELECT s.id, s.title,
+      SELECT s.id, s.title, s.${sessionPathColumn} AS session_path,
+             p.worktree AS project_worktree,
+             CASE WHEN LOWER(COALESCE(s.agent, '')) = 'codex' THEN 'codex' ELSE 'opencode' END AS source,
              COUNT(DISTINCT m.id) AS msg_count
       FROM session s
+      LEFT JOIN project p ON p.id = s.project_id
       JOIN message m ON m.session_id = s.id
       GROUP BY s.id
       ORDER BY s.time_created DESC
-    `).all() as { id: string; title: string; msg_count: number }[];
+    `).all() as {
+      id: string;
+      title: string;
+      session_path: string | null;
+      project_worktree: string | null;
+      source: 'opencode' | 'codex';
+      msg_count: number;
+    }[];
 
     const getContent = source.prepare(`
       SELECT group_concat(p.text, ' ') AS content
@@ -66,7 +88,9 @@ export class SearchIndex {
       for (const row of rows) {
         const contentRow = getContent.get(row.id) as { content: string | null } | undefined;
         const content = contentRow?.content || '';
-        insert.run(row.id, row.title || 'Untitled', content, row.msg_count);
+        const projectPath = row.project_worktree || row.session_path || '';
+        const project = projectPath ? basename(projectPath.replace(/\\/g, '/')) : '';
+        insert.run(row.id, row.title || 'Untitled', content, row.msg_count, row.source, project);
       }
     });
 
@@ -76,25 +100,39 @@ export class SearchIndex {
     return { total: rows.length, duration: Date.now() - start };
   }
 
-  search(query: string, limit = 50): SearchResult[] {
+  search(query: string, filters: SearchFilters = {}, limit = 50): SearchResult[] {
     if (!query.trim()) return [];
 
     try {
+      const conditions = ['conv_fts MATCH ?'];
+      const params: (string | number)[] = [query];
+
+      if (filters.source) {
+        conditions.push('source = ?');
+        params.push(filters.source);
+      }
+      if (filters.project) {
+        conditions.push('project = ?');
+        params.push(filters.project);
+      }
+      params.push(limit);
+
       const rows = this.indexDb.prepare(`
         SELECT session_id, title,
                snippet(conv_fts, 2, '<mark>', '</mark>', '...', 64) AS snippet,
-               rank
+               rank, source
         FROM conv_fts
-        WHERE conv_fts MATCH ?
+        WHERE ${conditions.join(' AND ')}
         ORDER BY rank
         LIMIT ?
-      `).all(query, limit) as { session_id: string; title: string; snippet: string; rank: number }[];
+      `).all(...params) as { session_id: string; title: string; snippet: string; rank: number; source: string }[];
 
       return rows.map(r => ({
         sessionId: r.session_id,
         title: r.title,
         snippet: r.snippet,
-        score: r.rank
+        score: r.rank,
+        source: r.source
       }));
     } catch {
       return [];

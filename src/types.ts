@@ -14,7 +14,7 @@ export interface Conversation {
 export interface Message {
   id: string;
   sessionID: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'developer';
   time: {
     created: number;
   };

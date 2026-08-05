@@ -3,6 +3,7 @@ import { OpenCodeImportStrategy } from './importers/opencode';
 import { ClaudeImportStrategy } from './importers/claude';
 import { ChatGPTImportStrategy } from './importers/chatgpt';
 import { ClaudeCodeRawImportStrategy } from './importers/claude-code-raw';
+import { CodexCLIImportStrategy } from './importers/codex-cli';
 
 export class ImportFormatRegistry {
   private static strategies: Map<string, new (archivePath: string) => ImportStrategy> = new Map();
@@ -13,6 +14,7 @@ export class ImportFormatRegistry {
     this.register('claude', ClaudeImportStrategy);
     this.register('chatgpt', ChatGPTImportStrategy);
     this.register('claude-code-raw', ClaudeCodeRawImportStrategy);
+    this.register('codex-cli', CodexCLIImportStrategy);
   }
 
   static register(format: string, strategy: new (archivePath: string) => ImportStrategy): void {
